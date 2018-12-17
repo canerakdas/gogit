@@ -6,8 +6,13 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
+
+	"github.com/fatih/color"
 )
 
 type Settings struct {
@@ -22,6 +27,65 @@ type User struct {
 
 type Repositories struct {
 	List []string `json:"repositories"`
+}
+
+type GitCommands struct {
+	Status Status
+}
+type Status struct {
+	Modified []string
+	Deleted  []string
+	Unknown  []string
+}
+
+func (s Status) Get(r []string) Status {
+	for _, v := range r {
+		cmd := exec.Command("git", "-C", v, "status", "-s")
+		out, err := cmd.Output()
+
+		color.Green("Selected repo:")
+		fmt.Println(string(v))
+
+		if err != nil {
+			log.Fatalf("go build failed")
+		}
+
+		var keyStr = strings.Fields(string(out))
+
+		for i := 0; i < len(keyStr)/2; i++ {
+			switch keyStr[(i * 2)] {
+			case "M":
+				s.Modified = append(s.Modified, string(keyStr[(i*2)+1]))
+			case "D":
+				s.Deleted = append(s.Deleted, string(keyStr[(i*2)+1]))
+			case "??":
+				s.Unknown = append(s.Unknown, string(keyStr[(i*2)+1]))
+			default:
+				s.Unknown = append(s.Unknown, string(keyStr[(i*2)+1]))
+			}
+		}
+		for i, v := range s.Modified {
+			if ok := i == 0; ok {
+				color.Green("Modified:")
+			}
+			fmt.Println(v)
+		}
+		for i, v := range s.Deleted {
+			if ok := i == 0; ok {
+				color.Red("Deleted:")
+			}
+			fmt.Println(v)
+		}
+		for i, v := range s.Unknown {
+			if ok := i == 0; ok {
+				color.Cyan("Unknown:")
+			}
+			fmt.Println(v)
+		}
+
+	}
+	// why dont effect main function ?
+	return s
 }
 
 var CurrentSettings Settings
@@ -128,12 +192,15 @@ func main() {
 		if *emailFlag != "" {
 			CurrentSettings.UpdateEmail(*emailFlag)
 		}
-
 		if *nameFlag != "" {
 			CurrentSettings.UpdateName(*nameFlag)
 		}
 		if *repostoriesAddFlag != "" {
-			CurrentSettings.AddRepositories(*repostoriesAddFlag)
+			if _, err := os.Stat(*repostoriesAddFlag + ".git"); !os.IsNotExist(err) {
+				CurrentSettings.AddRepositories(*repostoriesAddFlag)
+			} else {
+				log.Fatalf("This directory not exist .git file")
+			}
 		}
 		if *repostoriesRemoveFlag != "" {
 			CurrentSettings.RemoveRepositories(*repostoriesRemoveFlag)
@@ -141,6 +208,17 @@ func main() {
 		if *listFlag == "s" {
 			fmt.Println(CurrentSettings)
 		}
+
+		commandSet := GitCommands{
+			Status: Status{
+				Modified: []string{},
+				Deleted:  []string{},
+				Unknown:  []string{},
+			},
+		}
+
+		commandSet.Status = commandSet.Status.Get(CurrentSettings.Repositories.List)
+		fmt.Println(commandSet.Status)
 	}
 	defer settingsFile.Close()
 }
