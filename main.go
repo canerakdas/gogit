@@ -15,6 +15,7 @@ import (
 	"github.com/fatih/color"
 )
 
+// Structs declaration
 type Settings struct {
 	User         User         `json:"user"`
 	Repositories Repositories `json:"repositories"`
@@ -32,12 +33,18 @@ type Repositories struct {
 type GitCommands struct {
 	Status Status
 }
+
 type Status struct {
 	Modified []string
 	Deleted  []string
 	Unknown  []string
 }
 
+// Global variables declaration
+var CurrentSettings Settings
+var settingsPath = "/tmp/gogit/settings.json"
+
+// Git commands methods
 func (s Status) Get(r []string) Status {
 	for _, v := range r {
 		cmd := exec.Command("git", "-C", v, "status", "-s")
@@ -88,9 +95,7 @@ func (s Status) Get(r []string) Status {
 	return s
 }
 
-var CurrentSettings Settings
-var settingsPath = "/tmp/gogit/settings.json"
-
+// Settings methods
 func (s Settings) UpdateEmail(v string) {
 	s.User.Email = v
 	s.WriteSettingsFile()
